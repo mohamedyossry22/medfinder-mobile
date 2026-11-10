@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
@@ -7,15 +8,16 @@ import '../core/models.dart';
 import '../widgets/common.dart';
 import 'search_screen.dart';
 
-class _Match {
+class _Group {
   final String text;
+  final String? strength, confidence;
   final List<Drug> drugs;
-  _Match(this.text, this.drugs);
+  _Group(this.text, this.strength, this.confidence, this.drugs);
 }
 
 const _noise = {'rx', 'tab', 'tabs', 'tablet', 'tablets', 'cap', 'caps', 'capsule', 'capsules', 'syp', 'syrup', 'inj', 'amp', 'daily', 'bid', 'tid', 'od', 'mg', 'ml', 'gm', 'the', 'and', 'for', 'take', 'after', 'before', 'meal', 'meals'};
 
-/// بيطلّع أسماء مرشحة من النص المقروء (أسطر قصيرة بحروف إنجليزي)
+/// احتياطي (لو الذكاء الاصطناعي مش متاح): أسماء مرشحة من القراءة المحلية
 List<String> _candidates(RecognizedText r) {
   final out = <String>[];
   for (final b in r.blocks) {
@@ -30,7 +32,8 @@ List<String> _candidates(RecognizedText r) {
   return out.take(10).toList();
 }
 
-/// تصوير روشتة أو علبة دواء → قراءة النص (على الجهاز) → مطابقة تقريبية مع قاعدة الأدوية → "هل تقصد؟"
+/// تصوير روشتة أو علبة دواء ← الذكاء الاصطناعي يقرأ الأسماء ← مطابقة مع قاعدة الأدوية ← المستخدم يختار.
+/// لو الخدمة مش متاحة بنرجع للقراءة المحلية (ML Kit).
 class ScanTextScreen extends StatefulWidget {
   const ScanTextScreen({super.key, required this.kind});
   final String kind; // 'الروشتة' أو 'علبة الدواء'
@@ -40,52 +43,72 @@ class ScanTextScreen extends StatefulWidget {
 
 class _ScanTextScreenState extends State<ScanTextScreen> {
   bool _busy = false, _scanned = false;
-  String? _error;
-  List<_Match> _matches = [];
+  String? _error, _note;
+  List<_Group> _groups = [];
 
   Future<void> _pick(ImageSource source) async {
-    final x = await ImagePicker().pickImage(source: source, imageQuality: 90, maxWidth: 2200);
+    // نصغّر الصورة: أسرع في الرفع وأرخص في المعالجة
+    final x = await ImagePicker().pickImage(source: source, imageQuality: 85, maxWidth: 1600);
     if (x == null) return;
     setState(() {
       _busy = true;
       _error = null;
+      _note = null;
       _scanned = false;
     });
-    final recognizer = TextRecognizer(script: TextRecognitionScript.latin);
     try {
-      final r = await recognizer.processImage(InputImage.fromFilePath(x.path));
-      final api = context.read<Api>();
-      final lines = _candidates(r);
-      final results = await Future.wait(lines.map((q) async {
-        try {
-          return _Match(q, await api.searchDrugs(q, limit: 3));
-        } catch (_) {
-          return _Match(q, <Drug>[]);
+      List<_Group> groups;
+      try {
+        groups = await _aiScan(x.path);
+      } on DioException catch (e) {
+        final code = e.response?.statusCode;
+        if (code == 503 || code == 502 || code == 429) {
+          _note = code == 429
+              ? 'وصلت للحد الأقصى للمسح الذكي لحد الساعة دي، فاستخدمنا القراءة العادية (أقل دقة).'
+              : 'المسح الذكي مش متاح دلوقتي، فاستخدمنا القراءة العادية (أقل دقة).';
+          groups = await _localScan(x.path);
+        } else {
+          rethrow;
         }
-      }));
-      // نشيل الأسطر اللي ملهاش اقتراحات، وما نكررش نفس الدواء
-      final seen = <String>{};
-      final matches = <_Match>[];
-      for (final m in results) {
-        final fresh = m.drugs.where((d) => seen.add(d.id)).toList();
-        if (fresh.isNotEmpty) matches.add(_Match(m.text, fresh));
       }
       if (mounted) {
         setState(() {
-          _matches = matches;
+          _groups = groups;
           _scanned = true;
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _error = 'تعذر قراءة الصورة، حاول تصوّر بإضاءة أحسن');
+      if (mounted) setState(() => _error = e is DioException ? apiError(e) : 'تعذر قراءة الصورة، حاول تصوّر بإضاءة أحسن');
     } finally {
-      recognizer.close();
       if (mounted) setState(() => _busy = false);
     }
   }
 
-  Future<void> _manualSearch() async {
-    final d = await Navigator.of(context).push<Drug>(MaterialPageRoute(builder: (_) => const SearchScreen()));
+  Future<List<_Group>> _aiScan(String path) async {
+    final items = await context.read<Api>().scanImage(path);
+    return [for (final i in items) _Group(i.text, i.strength, i.confidence, i.matches)];
+  }
+
+  Future<List<_Group>> _localScan(String path) async {
+    final api = context.read<Api>();
+    final recognizer = TextRecognizer(script: TextRecognitionScript.latin);
+    try {
+      final r = await recognizer.processImage(InputImage.fromFilePath(path));
+      final lines = _candidates(r);
+      return await Future.wait(lines.map((q) async {
+        try {
+          return _Group(q, null, null, await api.searchDrugs(q, limit: 3));
+        } catch (_) {
+          return _Group(q, null, null, <Drug>[]);
+        }
+      }));
+    } finally {
+      recognizer.close();
+    }
+  }
+
+  Future<void> _manualSearch([String? q]) async {
+    final d = await Navigator.of(context).push<Drug>(MaterialPageRoute(builder: (_) => SearchScreen(initialQuery: q)));
     if (d != null && mounted) Navigator.of(context).pop(d);
   }
 
@@ -93,14 +116,16 @@ class _ScanTextScreenState extends State<ScanTextScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final muted = cs.onSurfaceVariant;
+    final seen = <String>{};
+
     return Scaffold(
       appBar: AppBar(title: Text('مسح ${widget.kind}')),
       body: SafeArea(
         child: ListView(padding: const EdgeInsets.all(16), children: [
           AppCard(
             child: Text(
-              'صوّر ${widget.kind} بوضوح وهنقرأ أسماء الأدوية المطبوعة بالإنجليزي ونقترحلك الأقرب من قاعدة الأدوية.\n'
-              'الخط المكتوب بالإيد ممكن ما يتقراش صح، فتأكد من الدواء بنفسك قبل ما تكمّل.',
+              'صوّر ${widget.kind} بوضوح، والذكاء الاصطناعي هيقرا أسماء الأدوية ونقترحلك الأقرب من قاعدة الأدوية.\n'
+              'الخط المكتوب بالإيد ممكن يتقري غلط، فاختار الدواء الصح بنفسك. الصورة بتتبعت للقراءة بس وما بنخزنهاش.',
               style: TextStyle(color: muted, height: 1.6),
             ),
           ),
@@ -125,20 +150,38 @@ class _ScanTextScreenState extends State<ScanTextScreen> {
             ),
           ]),
           const SizedBox(height: 16),
-          if (_busy) const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator())),
+          if (_busy)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 12),
+                  Text('بنقرا الصورة...', style: TextStyle(color: muted)),
+                ]),
+              ),
+            ),
           if (_error != null) Text(_error!, style: TextStyle(color: cs.error, fontWeight: FontWeight.w600)),
-          if (_scanned && _matches.isEmpty && !_busy)
-            Text('ما قدرناش نتعرف على دواء في الصورة. جرّب تصوّر أقرب، أو ابحث بالاسم.', style: TextStyle(color: muted)),
-          for (final m in _matches) ...[
+          if (_note != null) Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(_note!, style: TextStyle(color: muted, fontSize: 12))),
+          if (_scanned && _groups.isEmpty && !_busy)
+            Text('ما قدرناش نتعرف على دواء في الصورة. جرّب تصوّر أقرب وبإضاءة أحسن، أو ابحث بالاسم.', style: TextStyle(color: muted)),
+          for (final g in _groups) ...[
             Padding(
               padding: const EdgeInsets.only(top: 10, bottom: 6),
-              child: Text('قرأنا: "${m.text}" — هل تقصد؟', style: TextStyle(color: muted, fontWeight: FontWeight.w600)),
-            ),
-            for (final d in m.drugs)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: DrugTile(drug: d, onTap: () => Navigator.of(context).pop(d)),
+              child: Text(
+                'قرأنا: "${g.text}"${g.strength != null && g.strength!.isNotEmpty ? ' (${g.strength})' : ''}'
+                '${g.confidence == 'low' ? ' · غير واضح' : ''}',
+                style: TextStyle(color: muted, fontWeight: FontWeight.w600),
               ),
+            ),
+            if (g.drugs.isEmpty)
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton.icon(onPressed: () => _manualSearch(g.text), icon: const Icon(Icons.search), label: Text('ابحث عن "${g.text}"')),
+              )
+            else
+              for (final d in g.drugs.where((d) => seen.add(d.id)))
+                Padding(padding: const EdgeInsets.only(bottom: 8), child: DrugTile(drug: d, onTap: () => Navigator.of(context).pop(d))),
           ],
           const SizedBox(height: 12),
           TextButton.icon(onPressed: _manualSearch, icon: const Icon(Icons.search), label: const Text('أو ابحث بالاسم')),

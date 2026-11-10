@@ -6,9 +6,11 @@ import '../core/api.dart';
 import '../core/auth_state.dart';
 import '../core/models.dart';
 import '../core/realtime.dart';
+import '../core/theme.dart';
 import '../widgets/common.dart';
 import '../widgets/radar.dart';
-import '../core/theme.dart';
+import '../widgets/request_card.dart';
+
 /// الصيدليات اللي اتبعتلها الطلب + حالة الرد. بتتحدث لايف (SignalR) + تحديث دوري + سحب للتحديث.
 class RequestDetailsScreen extends StatefulWidget {
   const RequestDetailsScreen({super.key, required this.requestId});
@@ -105,21 +107,62 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
                 child: ListView(padding: const EdgeInsets.all(16), children: [
                   AppCard(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(d.drugNameEn, textDirection: TextDirection.ltr, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                      Text('${d.drugNameAr} · ${d.quantity} علبة', style: TextStyle(color: muted)),
+                      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(d.drugNameEn, textDirection: TextDirection.ltr, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                            Text('${d.drugNameAr} · ${d.quantity} علبة', style: TextStyle(color: muted)),
+                          ]),
+                        ),
+                        StatusChip(label: overallLabel(d.overallStatus), status: d.overallStatus),
+                      ]),
                       const SizedBox(height: 8),
                       Row(children: [
                         const Icon(Icons.timer_outlined, size: 16),
                         const SizedBox(width: 6),
-                        Text(d.isExpired ? 'انتهى وقت الطلب' : _remaining(d.expiresAt), style: TextStyle(color: muted, fontSize: 13)),
+                        Text(d.isClosed ? 'الطلب اتقفل' : (d.isExpired ? 'انتهى وقت الطلب' : _remaining(d.expiresAt)), style: TextStyle(color: muted, fontSize: 13)),
                       ]),
                     ]),
                   ),
+
+                  // الصيدلية سجّلت التسليم: المستخدم يأكد الاستلام
+                  if (d.needsConfirmation) ...[
+                    const SizedBox(height: 12),
+                    AppCard(
+                      borderColor: pinColor('Available'),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                        const Text('الصيدلية سجّلت تسليم الدواء', style: TextStyle(fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 4),
+                        Text('لو استلمته فعلًا اضغط تأكيد، وهنقفل الطلب ونلغيه عند باقي الصيدليات.', style: TextStyle(color: muted, fontSize: 13)),
+                        const SizedBox(height: 10),
+                        FilledButton.icon(
+                          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(46), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                          onPressed: () async {
+                            if (await confirmReceipt(context, d.id)) _load();
+                          },
+                          icon: const Icon(Icons.check_circle_outline),
+                          label: const Text('أكّد إنك استلمت الدواء'),
+                        ),
+                      ]),
+                    ),
+                  ],
+                  if (d.isClosed) ...[
+                    const SizedBox(height: 12),
+                    AppCard(
+                      borderColor: pinColor('Available'),
+                      child: const Row(children: [
+                        Icon(Icons.check_circle, color: Color(0xFF12B76A)),
+                        SizedBox(width: 10),
+                        Expanded(child: Text('تم تسليم الطلب وقفلناه عند باقي الصيدليات')),
+                      ]),
+                    ),
+                  ],
+
                   const SizedBox(height: 14),
                   Center(
                     child: RadarView(
                       radiusKm: d.radiusKm,
-                      animate: !d.isExpired && d.availableCount == 0,
+                      animate: d.overallStatus == 'Pending',
                       pins: [for (final p in d.pharmacies) RadarPin(p.pharmacyId, p.status, p.distanceKm)],
                     ),
                   ),
@@ -129,16 +172,24 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
                     textAlign: TextAlign.center,
                     style: TextStyle(color: muted),
                   ),
-                  if (!d.isExpired && d.availableCount == 0 && d.radiusKm < Settings.radii.last) ...[
-                    const SizedBox(height: 10),
-                    Center(
-                      child: OutlinedButton.icon(
-                        onPressed: _expanding ? null : () => _expand(d),
-                        icon: const Icon(Icons.zoom_out_map),
-                        label: const Text('وسّع النطاق'),
-                      ),
+
+                  // الكل رد "غير متوفر": نوسّع النطاق
+                  if (d.canExpand) ...[
+                    const SizedBox(height: 12),
+                    AppCard(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                        Text('كل الصيدليات في النطاق ده ردّت إن الدواء غير متوفر.', style: TextStyle(color: muted)),
+                        const SizedBox(height: 10),
+                        FilledButton.icon(
+                          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(46), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                          onPressed: _expanding ? null : () => _expand(d),
+                          icon: const Icon(Icons.zoom_out_map),
+                          label: const Text('وسّع النطاق'),
+                        ),
+                      ]),
                     ),
                   ],
+
                   const SizedBox(height: 16),
                   for (final p in ([...d.pharmacies]..sort((a, b) {
                         final r = _rank(a.status).compareTo(_rank(b.status));
@@ -159,7 +210,7 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
     final good = p.status == 'Available' || p.status == 'Partial';
     final status = (p.status == 'Pending' && d.isExpired) ? 'Expired' : p.status;
     return AppCard(
-      borderColor: good ? pinColor('Available') : null,
+      borderColor: (good || p.status == 'Delivered') ? pinColor('Available') : null,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Expanded(child: Text(p.name, style: const TextStyle(fontWeight: FontWeight.w700))),

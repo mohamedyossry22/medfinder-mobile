@@ -18,8 +18,8 @@ Future<Position> currentPosition() async {
   if (perm == LocationPermission.deniedForever) {
     throw LocationException('إذن الموقع مرفوض، فعّله من إعدادات التطبيق', openSettings: true);
   }
- return Geolocator.getCurrentPosition(
-  desiredAccuracy: LocationAccuracy.high,
-  timeLimit: const Duration(seconds: 15),
-);
+  return Geolocator.getCurrentPosition(
+    desiredAccuracy: LocationAccuracy.high,
+    timeLimit: const Duration(seconds: 15),
+  );
 }

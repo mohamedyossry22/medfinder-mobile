@@ -36,6 +36,7 @@ StatusStyle statusStyle(String status, bool dark) {
       return dark ? const StatusStyle(Color(0xFFF5C451), Color(0xFF3A2D0E)) : const StatusStyle(Color(0xFF93600A), Color(0xFFFEF3DC));
     case 'Unavailable':
     case 'Expired':
+    case 'Cancelled':
       return dark ? const StatusStyle(Color(0xFFB6C0CC), Color(0xFF252C33)) : const StatusStyle(Color(0xFF475467), Color(0xFFEEF0F3));
     default: // Pending
       return dark ? const StatusStyle(Color(0xFF8DB0FF), Color(0xFF1A2744)) : const StatusStyle(Color(0xFF2A55B8), Color(0xFFE8EFFD));
@@ -52,6 +53,7 @@ Color pinColor(String status) {
       return const Color(0xFFF5A524);
     case 'Unavailable':
     case 'Expired':
+    case 'Cancelled':
       return const Color(0xFF98A2B3);
     default:
       return const Color(0xFF5B8DEF);

@@ -7,7 +7,7 @@ import 'core/auth_state.dart';
 import 'core/push.dart';
 import 'core/realtime.dart';
 import 'core/theme.dart';
-import 'screens/home_screen.dart';
+import 'screens/main_shell.dart';
 import 'screens/login_screen.dart';
 
 final navKey = GlobalKey<NavigatorState>();
@@ -56,7 +56,7 @@ class MedFinderApp extends StatelessWidget {
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),
       themeMode: ThemeMode.system,
-      home: Consumer<AuthState>(builder: (_, a, __) => a.loggedIn ? const HomeScreen() : const LoginScreen()),
+      home: Consumer<AuthState>(builder: (_, a, __) => a.loggedIn ? const MainShell() : const LoginScreen()),
     );
   }
 }

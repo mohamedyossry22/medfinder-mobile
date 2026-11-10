@@ -25,12 +25,15 @@ class Ad {
 }
 
 class RequestSummary {
-  final String id, drugNameEn, drugNameAr;
+  final String id, drugNameEn, drugNameAr, overallStatus;
   final int quantity, totalPharmacies, availableCount;
   final DateTime createdAt, expiresAt;
-  final bool isExpired;
+  final bool isExpired, isClosed, needsConfirmation;
   RequestSummary.fromJson(Map<String, dynamic> j)
-      : id = j['id'] as String,
+      : overallStatus = (j['overallStatus'] ?? 'Pending') as String,
+        isClosed = (j['isClosed'] ?? false) as bool,
+        needsConfirmation = (j['needsConfirmation'] ?? false) as bool,
+        id = j['id'] as String,
         drugNameEn = j['drugNameEn'] as String,
         drugNameAr = j['drugNameAr'] as String,
         quantity = j['quantity'] as int,
@@ -68,14 +71,18 @@ class PharmacyReply {
 }
 
 class RequestDetails {
-  final String id, drugNameEn, drugNameAr;
+  final String id, drugNameEn, drugNameAr, overallStatus;
   final int quantity;
   final double radiusKm;
   final DateTime createdAt, expiresAt;
-  final bool isExpired;
+  final bool isExpired, isClosed, needsConfirmation, canExpand;
   final List<PharmacyReply> pharmacies;
   RequestDetails.fromJson(Map<String, dynamic> j)
-      : id = j['id'] as String,
+      : overallStatus = (j['overallStatus'] ?? 'Pending') as String,
+        isClosed = (j['isClosed'] ?? false) as bool,
+        needsConfirmation = (j['needsConfirmation'] ?? false) as bool,
+        canExpand = (j['canExpand'] ?? false) as bool,
+        id = j['id'] as String,
         drugNameEn = j['drugNameEn'] as String,
         drugNameAr = j['drugNameAr'] as String,
         quantity = j['quantity'] as int,
@@ -87,6 +94,18 @@ class RequestDetails {
 
   int get answered => pharmacies.where((p) => p.status != 'Pending' && p.status != 'Expired').length;
   int get availableCount => pharmacies.where((p) => p.status == 'Available' || p.status == 'Partial').length;
+}
+
+/// نتيجة مسح صورة (روشتة/علبة): الاسم اللي اتقرأ + الأدوية المقترحة من قاعدة الأدوية
+class ScanItem {
+  final String text;
+  final String? strength, confidence;
+  final List<Drug> matches;
+  ScanItem.fromJson(Map<String, dynamic> j)
+      : text = (j['text'] ?? '') as String,
+        strength = j['strength'] as String?,
+        confidence = j['confidence'] as String?,
+        matches = ((j['matches'] ?? []) as List).map((e) => Drug.fromJson(e as Map<String, dynamic>)).toList();
 }
 
 class CreateResult {

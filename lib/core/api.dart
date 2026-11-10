@@ -18,6 +18,9 @@ const _errors = {
   'rate_limited': 'وصلت للحد الأقصى (5 طلبات في الساعة)، حاول بعد شوية',
   'expired': 'الطلب انتهى وقته',
   'not_found': 'الطلب غير موجود',
+  'closed': 'الطلب اتقفل',
+  'already_closed': 'الطلب اتقفل قبل كده',
+  'not_delivered': 'الصيدلية لسه ما سجّلتش تسليم الدواء',
 };
 
 String apiError(Object e, {String fallback = 'حصل خطأ، حاول تاني'}) {
@@ -112,14 +115,26 @@ class Api {
     return (r.data['added'] ?? 0) as int;
   }
 
-  Future<List<RequestSummary>> myRequests() async {
-    final r = await _dio.get('/api/requests/mine');
+  /// activeOnly: الطلبات الجارية بس (للصفحة الرئيسية)
+  Future<List<RequestSummary>> myRequests({bool activeOnly = false}) async {
+    final r = await _dio.get('/api/requests/mine', queryParameters: activeOnly ? {'scope': 'active'} : null);
     return (r.data as List).map((e) => RequestSummary.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<RequestDetails> requestDetails(String id) async {
     final r = await _dio.get('/api/requests/$id');
     return RequestDetails.fromJson(r.data as Map<String, dynamic>);
+  }
+
+  /// المستخدم بيأكد إنه استلم الدواء: الطلب بيتقفل عند كل الصيدليات
+  Future<void> confirmDelivery(String requestId) => _dio.post('/api/requests/$requestId/confirm-delivery');
+
+  // ── مسح الروشتة/العلبة بالذكاء الاصطناعي ──
+  Future<List<ScanItem>> scanImage(String path) async {
+    final form = FormData.fromMap({'image': await MultipartFile.fromFile(path, filename: 'scan.jpg')});
+    final r = await _dio.post('/api/drugs/scan',
+        data: form, options: Options(sendTimeout: const Duration(seconds: 60), receiveTimeout: const Duration(seconds: 60)));
+    return ((r.data['items'] ?? []) as List).map((e) => ScanItem.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   // ── الإشعارات ──

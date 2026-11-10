@@ -4,10 +4,12 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/api.dart';
 import '../core/auth_state.dart';
+import '../core/config.dart';
 import '../core/models.dart';
 import '../core/push.dart';
 import '../core/realtime.dart';
 import '../widgets/common.dart';
+import '../widgets/request_card.dart';
 import 'new_request_screen.dart';
 import 'request_details_screen.dart';
 import 'scan_barcode_screen.dart';
@@ -22,8 +24,10 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   List<Ad> _ads = [];
-  List<RequestSummary> _recent = [];
+  List<RequestSummary> _active = [];
   bool _loading = true;
+  StreamSubscription<void>? _sub;
+  Timer? _timer;
 
   @override
   void initState() {
@@ -33,16 +37,26 @@ class _HomeScreenState extends State<HomeScreen> {
       context.read<PushService>().init();
       _load();
     });
+    // الحالة بتتحدث لايف أول ما صيدلية ترد، وتحديث دوري احتياطي
+    _sub = context.read<RealtimeService>().updates.listen((_) => _load());
+    _timer = Timer.periodic(const Duration(seconds: 20), (_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    _timer?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
     final api = context.read<Api>();
     try {
-      final r = await Future.wait([api.ads(), api.myRequests()]);
+      final r = await Future.wait([api.ads(), api.myRequests(activeOnly: true)]);
       if (mounted) {
         setState(() {
           _ads = r[0] as List<Ad>;
-          _recent = (r[1] as List<RequestSummary>).take(3).toList();
+          _active = r[1] as List<RequestSummary>;
         });
       }
     } catch (_) {/* الصفحة تفضل شغالة */}
@@ -117,7 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
             Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
               _Action(icon: Icons.document_scanner_outlined, label: 'روشتة', onTap: () => _go(const ScanTextScreen(kind: 'الروشتة'))),
-              _Action(icon: Icons.qr_code_scanner, label: 'باركود', onTap: () => _go(const ScanBarcodeScreen())),
+              if (kEnableBarcode) _Action(icon: Icons.qr_code_scanner, label: 'باركود', onTap: () => _go(const ScanBarcodeScreen())),
               _Action(icon: Icons.inventory_2_outlined, label: 'علبة الدواء', onTap: () => _go(const ScanTextScreen(kind: 'علبة الدواء'))),
             ]),
             const SizedBox(height: 22),
@@ -130,40 +144,30 @@ class _HomeScreenState extends State<HomeScreen> {
             ]),
             const SizedBox(height: 22),
 
+            // مساحة الإعلانات
             if (_ads.isNotEmpty) ...[
               _AdsCarousel(ads: _ads),
               const SizedBox(height: 22),
             ],
 
-            if (_recent.isNotEmpty) ...[
-              const Text('طلباتك الأخيرة', style: TextStyle(fontWeight: FontWeight.w700)),
+            // الطلبات اللي بيتم البحث عنها دلوقتي بس (الباقي في تاب "طلباتي")
+            if (_active.isNotEmpty) ...[
+              const Text('بنبحث عنها دلوقتي', style: TextStyle(fontWeight: FontWeight.w700)),
               const SizedBox(height: 8),
-              for (final r in _recent)
+              for (final r in _active)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
-                  child: AppCard(
+                  child: RequestCard(
+                    r: r,
+                    onChanged: _load,
                     onTap: () async {
                       await Navigator.of(context).push(MaterialPageRoute(builder: (_) => RequestDetailsScreen(requestId: r.id)));
                       _load();
                     },
-                    child: Row(children: [
-                      Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(r.drugNameEn, textDirection: TextDirection.ltr, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-                          Text('${r.quantity} علبة', style: TextStyle(color: muted, fontSize: 12)),
-                        ]),
-                      ),
-                      if (r.isExpired)
-                        const StatusChip(label: 'انتهى', status: 'Expired')
-                      else if (r.availableCount > 0)
-                        StatusChip(label: '${r.availableCount} صيدلية متوفر', status: 'Available')
-                      else
-                        const StatusChip(label: 'بانتظار الرد', status: 'Pending'),
-                    ]),
                   ),
                 ),
             ] else if (!_loading)
-              Center(child: Padding(padding: const EdgeInsets.all(12), child: Text('لسه ما عملتش طلبات', style: TextStyle(color: muted)))),
+              Center(child: Padding(padding: const EdgeInsets.all(12), child: Text('مفيش طلبات جارية دلوقتي', style: TextStyle(color: muted)))),
           ]),
         ),
       ),
@@ -237,7 +241,7 @@ class _AdsCarouselState extends State<_AdsCarousel> {
     final api = context.read<Api>();
     return Column(children: [
       SizedBox(
-        height: 150,
+        height: 170,
         child: PageView.builder(
           controller: _page,
           itemCount: widget.ads.length,

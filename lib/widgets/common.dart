@@ -44,6 +44,26 @@ String statusLabel(String status, {int? qty, int? total}) {
       return 'تم التسليم';
     case 'Expired':
       return 'لم يرد';
+    case 'Cancelled':
+      return 'أُلغي';
+    default:
+      return 'بانتظار الرد';
+  }
+}
+
+/// الحالة العامة للطلب
+String overallLabel(String s) {
+  switch (s) {
+    case 'Available':
+      return 'متوفر';
+    case 'Partial':
+      return 'متوفر جزئيًا';
+    case 'Unavailable':
+      return 'غير متوفر';
+    case 'Delivered':
+      return 'تم التسليم';
+    case 'Expired':
+      return 'انتهى';
     default:
       return 'بانتظار الرد';
   }
