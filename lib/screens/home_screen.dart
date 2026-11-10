@@ -9,6 +9,7 @@ import '../core/models.dart';
 import '../core/push.dart';
 import '../core/realtime.dart';
 import '../widgets/common.dart';
+import '../widgets/logo.dart';
 import '../widgets/request_card.dart';
 import 'new_request_screen.dart';
 import 'request_details_screen.dart';
@@ -92,17 +93,18 @@ class _HomeScreenState extends State<HomeScreen> {
         child: RefreshIndicator(
           onRefresh: _load,
           child: ListView(padding: const EdgeInsets.all(20), children: [
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(name.isEmpty ? _greeting : '$_greeting يا $name', style: TextStyle(color: muted, fontSize: 13)),
-                const Text('عايز تدوّر على إيه؟', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-              ]),
+            Row(children: [
+              const AppLogo(size: 34, showName: true),
+              const Spacer(),
               PopupMenuButton<String>(
                 tooltip: 'القائمة',
                 onSelected: (_) => _logout(),
                 itemBuilder: (_) => const [PopupMenuItem(value: 'logout', child: Text('تسجيل الخروج'))],
               ),
             ]),
+            const SizedBox(height: 14),
+            Text(name.isEmpty ? _greeting : '$_greeting يا $name', style: TextStyle(color: muted, fontSize: 13)),
+            const Text('عايز تدوّر على إيه؟', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
             const SizedBox(height: 18),
 
             // كبسولة البحث (أهم عنصر في الشاشة)

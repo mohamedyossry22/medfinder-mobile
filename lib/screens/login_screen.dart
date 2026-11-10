@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../core/api.dart';
+import '../widgets/logo.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -92,9 +93,8 @@ class _LoginScreenState extends State<LoginScreen> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Text('MedFinder',
-                    textAlign: TextAlign.center, style: TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: cs.primary)),
-                const SizedBox(height: 6),
+                const Center(child: AppLogo(size: 84, showName: true, stacked: true)),
+                const SizedBox(height: 10),
                 Text('دوّر على دواءك في أقرب الصيدليات',
                     textAlign: TextAlign.center, style: TextStyle(color: cs.onSurfaceVariant)),
                 const SizedBox(height: 32),
