@@ -21,9 +21,22 @@ const _errors = {
   'closed': 'الطلب اتقفل',
   'already_closed': 'الطلب اتقفل قبل كده',
   'not_delivered': 'الصيدلية لسه ما سجّلتش تسليم الدواء',
+  'invalid_credentials': 'البريد أو كلمة المرور غير صحيحة',
+  'locked_out': 'الحساب مقفول مؤقتًا بسبب محاولات كتيرة، حاول بعد 15 دقيقة',
+  'locked': 'مينفعش تعدّل الرد دلوقتي',
+  'invalid_subject': 'عنوان الشكوى لازم يكون من 3 لـ 150 حرف',
+  'invalid_message': 'نص الشكوى لازم يكون من 10 لـ 2000 حرف',
+  'invalid_category': 'نوع الشكوى غير صحيح',
+  'pharmacy_not_approved': 'حساب الصيدلية لسه مش معتمد',
 };
 
+/// الحساب اتسجّل دخوله بنجاح بس مش حساب صيدلية (مثلاً أدمن)
+class NotPharmacyAccount implements Exception {
+  const NotPharmacyAccount();
+}
+
 String apiError(Object e, {String fallback = 'حصل خطأ، حاول تاني'}) {
+  if (e is NotPharmacyAccount) return 'الحساب ده مش حساب صيدلية. لوحة الإدارة متاحة من الويب بس';
   if (e is DioException) {
     if (e.response == null) return 'تعذر الاتصال بالسيرفر، اتأكد من الإنترنت';
     final d = e.response?.data;
@@ -71,6 +84,50 @@ class Api {
         data: {'phone': phone, 'code': code, 'fullName': name, 'age': age});
     await _auth.setSession(r.data['token'] as String, (r.data['fullName'] ?? '') as String);
   }
+
+  // ── الشكاوى (مستخدم وصيدلية) ──
+  Future<void> createComplaint(String category, String subject, String message) =>
+      _dio.post('/api/complaints', data: {'category': category, 'subject': subject, 'message': message});
+
+  Future<List<MyComplaint>> myComplaints() async {
+    final r = await _dio.get('/api/complaints/mine');
+    return (r.data as List).map((e) => MyComplaint.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  // ── الصيدلية ──
+  Future<void> pharmacyLogin(String email, String password) async {
+    final r = await _dio.post('/api/auth/login', data: {'email': email, 'password': password});
+    if (r.data['role'] != 'Pharmacy') throw const NotPharmacyAccount();
+    await _auth.setSession(r.data['token'] as String, (r.data['fullName'] ?? '') as String, role: 'Pharmacy');
+  }
+
+  Future<PharmacyMe> pharmacyMe() async {
+    final r = await _dio.get('/api/pharmacy/me');
+    return PharmacyMe.fromJson(r.data as Map<String, dynamic>);
+  }
+
+  Future<List<IncomingRequest>> incomingRequests() async {
+    final r = await _dio.get('/api/pharmacy/requests/incoming');
+    return (r.data as List).map((e) => IncomingRequest.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<PharmacyRequest> pharmacyRequest(String targetId) async {
+    final r = await _dio.get('/api/pharmacy/requests/$targetId');
+    return PharmacyRequest.fromJson(r.data as Map<String, dynamic>);
+  }
+
+  /// status: Available | Partial | Unavailable
+  Future<RespondResult> respond(String targetId, String status, {int? qty}) async {
+    final r = await _dio.post('/api/pharmacy/requests/$targetId/respond', data: {'status': status, 'availableQty': qty});
+    return RespondResult.fromJson(r.data as Map<String, dynamic>);
+  }
+
+  Future<List<ReadyItem>> readyItems() async {
+    final r = await _dio.get('/api/pharmacy/ready');
+    return (r.data as List).map((e) => ReadyItem.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<void> deliver(String targetId) => _dio.post('/api/pharmacy/ready/$targetId/deliver', data: {});
 
   // ── الأدوية ──
   Future<List<Drug>> searchDrugs(String q, {int limit = 15}) async {

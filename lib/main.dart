@@ -4,18 +4,20 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'core/api.dart';
 import 'core/auth_state.dart';
+import 'core/pharmacy_state.dart';
 import 'core/push.dart';
 import 'core/realtime.dart';
 import 'core/theme.dart';
 import 'screens/main_shell.dart';
+import 'screens/pharmacy/pharmacy_shell.dart';
 import 'screens/login_screen.dart';
-
+import 'firebase_options.dart';
 final navKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
-    await Firebase.initializeApp(); // لو Firebase مش متظبط التطبيق بيشتغل من غير إشعارات
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform); // لو Firebase مش متظبط التطبيق بيشتغل من غير إشعارات
   } catch (_) {}
 
   final auth = AuthState();
@@ -31,6 +33,7 @@ Future<void> main() async {
       ChangeNotifierProvider(create: (_) => Settings()),
       Provider<Api>(create: (_) => Api(auth)),
       Provider<RealtimeService>(create: (_) => RealtimeService(auth), dispose: (_, r) => r.stop()),
+      ChangeNotifierProvider<PharmacyState>(create: (c) => PharmacyState(c.read<Api>(), c.read<RealtimeService>())),
       Provider<PushService>(create: (c) => PushService(c.read<Api>(), navKey, c.read<RealtimeService>())),
     ],
     child: const MedFinderApp(),
@@ -56,7 +59,7 @@ class MedFinderApp extends StatelessWidget {
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),
       themeMode: ThemeMode.system,
-      home: Consumer<AuthState>(builder: (_, a, __) => a.loggedIn ? const MainShell() : const LoginScreen()),
+      home: Consumer<AuthState>(builder: (_, a, __) => a.loggedIn ? (a.isPharmacy ? const PharmacyShell() : const MainShell()) : const LoginScreen()),
     );
   }
 }

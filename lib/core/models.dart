@@ -114,6 +114,100 @@ class CreateResult {
   CreateResult(this.requestId, this.pharmaciesCount);
 }
 
+// ───────── الشكاوى ─────────
+class MyComplaint {
+  final String id, category, subject, message, status;
+  final String? adminReply;
+  final DateTime createdAt;
+  final DateTime? reviewedAt;
+  MyComplaint.fromJson(Map<String, dynamic> j)
+      : id = j['id'] as String,
+        category = j['category'] as String,
+        subject = j['subject'] as String,
+        message = j['message'] as String,
+        status = j['status'] as String,
+        adminReply = j['adminReply'] as String?,
+        createdAt = _t(j['createdAt']),
+        reviewedAt = j['reviewedAt'] == null ? null : _t(j['reviewedAt']);
+}
+
+// ───────── الصيدلية ─────────
+class PharmacyMe {
+  final String id, name, pharmacistName, governorate, status;
+  final String? reason;
+  PharmacyMe.fromJson(Map<String, dynamic> j)
+      : id = j['id'] as String,
+        name = j['name'] as String,
+        pharmacistName = (j['pharmacistName'] ?? '') as String,
+        governorate = (j['governorate'] ?? '') as String,
+        status = j['status'] as String,
+        reason = j['reason'] as String?;
+}
+
+/// نتيجة الرد: النقاط اللي اتكسبت (0 لو ده تعديل لرد قديم)
+class RespondResult {
+  final int pointsAwarded;
+  final int? pointsBalance;
+  const RespondResult(this.pointsAwarded, this.pointsBalance);
+  RespondResult.fromJson(Map<String, dynamic> j)
+      : pointsAwarded = (j['pointsAwarded'] ?? 0) as int,
+        pointsBalance = j['pointsBalance'] as int?;
+}
+
+class IncomingRequest {
+  final String targetId, requestId, drugNameEn, drugNameAr;
+  final String? activeIngredient;
+  final int quantity;
+  final double distanceKm;
+  final DateTime createdAt, expiresAt;
+  IncomingRequest.fromJson(Map<String, dynamic> j)
+      : targetId = j['targetId'] as String,
+        requestId = j['requestId'] as String,
+        drugNameEn = j['drugNameEn'] as String,
+        drugNameAr = (j['drugNameAr'] ?? '') as String,
+        activeIngredient = j['activeIngredient'] as String?,
+        quantity = j['quantity'] as int,
+        distanceKm = _d(j['distanceKm']),
+        createdAt = _t(j['createdAt']),
+        expiresAt = _t(j['expiresAt']);
+}
+
+class ReadyItem {
+  final String targetId, drugNameEn, drugNameAr, status;
+  final int quantity, availableQty;
+  final DateTime expiresAt;
+  ReadyItem.fromJson(Map<String, dynamic> j)
+      : targetId = j['targetId'] as String,
+        drugNameEn = j['drugNameEn'] as String,
+        drugNameAr = (j['drugNameAr'] ?? '') as String,
+        status = j['status'] as String,
+        quantity = j['quantity'] as int,
+        availableQty = (j['availableQty'] ?? 0) as int,
+        expiresAt = _t(j['expiresAt']);
+}
+
+class PharmacyRequest {
+  final String id, drugNameEn, drugNameAr, status;
+  final String? activeIngredient, manufacturer, route;
+  final int quantity;
+  final int? availableQty;
+  final double distanceKm;
+  final DateTime createdAt, expiresAt;
+  PharmacyRequest.fromJson(Map<String, dynamic> j)
+      : id = j['id'] as String,
+        drugNameEn = j['drugNameEn'] as String,
+        drugNameAr = (j['drugNameAr'] ?? '') as String,
+        status = j['status'] as String,
+        activeIngredient = j['activeIngredient'] as String?,
+        manufacturer = j['manufacturer'] as String?,
+        route = j['route'] as String?,
+        quantity = j['quantity'] as int,
+        availableQty = j['availableQty'] as int?,
+        distanceKm = _d(j['distanceKm']),
+        createdAt = _t(j['createdAt']),
+        expiresAt = _t(j['expiresAt']);
+}
+
 /// بيستخرج رقم الباركود من القيمة المقروءة (EAN/UPC أو GS1 DataMatrix اللي بيبدأ بـ 01 + GTIN-14)
 String? normalizeBarcode(String? raw) {
   if (raw == null) return null;

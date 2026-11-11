@@ -16,6 +16,7 @@ import 'request_details_screen.dart';
 import 'scan_barcode_screen.dart';
 import 'scan_text_screen.dart';
 import 'search_screen.dart';
+import 'complaints_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -98,8 +99,17 @@ class _HomeScreenState extends State<HomeScreen> {
               const Spacer(),
               PopupMenuButton<String>(
                 tooltip: 'القائمة',
-                onSelected: (_) => _logout(),
-                itemBuilder: (_) => const [PopupMenuItem(value: 'logout', child: Text('تسجيل الخروج'))],
+                onSelected: (v) {
+                  if (v == 'complaints') {
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ComplaintsScreen()));
+                  } else {
+                    _logout();
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'complaints', child: Text('الشكاوى')),
+                  PopupMenuItem(value: 'logout', child: Text('تسجيل الخروج')),
+                ],
               ),
             ]),
             const SizedBox(height: 14),

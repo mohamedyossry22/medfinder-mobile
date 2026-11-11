@@ -102,6 +102,21 @@ class SoftTag extends StatelessWidget {
   }
 }
 
+/// تاج بنص عربي/عادي (SoftTag الأصلي بيفرض LTR للأسماء العلمية)
+class ArTag extends StatelessWidget {
+  const ArTag(this.text, {super.key});
+  final String text;
+  @override
+  Widget build(BuildContext context) {
+    final dark = isDark(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+      decoration: BoxDecoration(color: dark ? const Color(0xFF12322C) : const Color(0xFFE3F6F1), borderRadius: BorderRadius.circular(999)),
+      child: Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: dark ? const Color(0xFF7BE6CC) : const Color(0xFF0B6B58))),
+    );
+  }
+}
+
 class DrugTile extends StatelessWidget {
   const DrugTile({super.key, required this.drug, required this.onTap});
   final Drug drug;
