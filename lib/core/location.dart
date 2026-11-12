@@ -23,3 +23,33 @@ Future<Position> currentPosition() async {
     timeLimit: const Duration(seconds: 15),
   );
 }
+
+Position? _adsPos;
+DateTime? _adsPosAt;
+
+/// موقع المستخدم للإعلانات القريبة. بيتخزن 10 دقايق.
+/// ask=true بيطلب الإذن لو لسه ماتطلبش. بيرجّع null لو الموقع مش متاح (من غير ما يرمي خطأ).
+Future<Position?> positionForAds({bool ask = false}) async {
+  final at = _adsPosAt;
+  if (_adsPos != null && at != null && DateTime.now().difference(at) < const Duration(minutes: 10)) return _adsPos;
+  try {
+    if (!await Geolocator.isLocationServiceEnabled()) return null;
+    var perm = await Geolocator.checkPermission();
+    if (perm == LocationPermission.denied && ask) perm = await Geolocator.requestPermission();
+    if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever || perm == LocationPermission.unableToDetermine) {
+      return null;
+    }
+    Position? p;
+    try {
+      p = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium, timeLimit: const Duration(seconds: 10));
+    } catch (_) {
+      p = await Geolocator.getLastKnownPosition();
+    }
+    if (p == null) return null;
+    _adsPos = p;
+    _adsPosAt = DateTime.now();
+    return p;
+  } catch (_) {
+    return null;
+  }
+}

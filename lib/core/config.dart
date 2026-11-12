@@ -9,3 +9,6 @@ const bool kEnableBarcode = false;
 /// شغّل بـ: --dart-define=WEB_BASE=https://your-domain.com
 const String webBase = String.fromEnvironment('WEB_BASE', defaultValue: 'http://localhost:4200');
 const String webRegisterUrl = '$webBase/register';
+
+/// الإعلان بيظهر بس للمستخدمين في نطاق الصيدلية (نفس الرقم في الباك إند)
+const double kAdRadiusKm = 10;

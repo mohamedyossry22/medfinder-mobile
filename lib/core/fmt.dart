@@ -1,12 +1,19 @@
 /// أدوات تنسيق لشاشات الصيدلية (نفس منطق core/fmt.ts في الويب)
-const _lifetimeMs = 6 * 3600 * 1000;
+const _replyWindowMs = 120 * 60 * 1000; // مهلة رد الصيدلية: 120 دقيقة
 
-/// نسبة الوقت المتبقي للطلب (0..1)
+/// نسبة الوقت المتبقي لرد الصيدلية (0..1). في الطلبات الواردة expiresAt = آخر وقت للرد
 double remainingFrac(DateTime expiresAt, DateTime now) {
-  final f = expiresAt.difference(now).inMilliseconds / _lifetimeMs;
+  final f = expiresAt.difference(now).inMilliseconds / _replyWindowMs;
   return f < 0 ? 0.0 : (f > 1 ? 1.0 : f);
 }
 
+/// الدقايق المتبقية لرد الصيدلية
+int minutesLeft(DateTime expiresAt, DateTime now) {
+  final m = (expiresAt.difference(now).inSeconds / 60).ceil();
+  return m < 0 ? 0 : m;
+}
+
+/// الساعات المتبقية لفترة الاستلام والتسليم (6 ساعات من الإنشاء)
 int hoursLeft(DateTime expiresAt, DateTime now) {
   final h = (expiresAt.difference(now).inMinutes / 60).ceil();
   return h < 0 ? 0 : h;

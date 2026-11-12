@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../core/api.dart';
 import '../core/auth_state.dart';
 import '../core/config.dart';
@@ -17,6 +16,10 @@ import 'scan_barcode_screen.dart';
 import 'scan_text_screen.dart';
 import 'search_screen.dart';
 import 'complaints_screen.dart';
+import '../widgets/ad_tile.dart';
+import 'ad_details_screen.dart';
+import 'ads_screen.dart';
+import '../core/location.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -51,18 +54,32 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  bool _askedLocation = false;
+
   Future<void> _load() async {
     final api = context.read<Api>();
     try {
-      final r = await Future.wait([api.ads(), api.myRequests(activeOnly: true)]);
-      if (mounted) {
-        setState(() {
-          _ads = r[0] as List<Ad>;
-          _active = r[1] as List<RequestSummary>;
-        });
-      }
+      final r = await api.myRequests(activeOnly: true);
+      if (mounted) setState(() => _active = r);
     } catch (_) {/* الصفحة تفضل شغالة */}
     if (mounted) setState(() => _loading = false);
+    _loadAds(); // مش بنستناها: الموقع ممكن ياخد وقت
+  }
+
+  /// إعلانات الصيدليات اللي في نطاق 10 كم منك. من غير موقع مفيش إعلانات.
+  Future<void> _loadAds() async {
+    final api = context.read<Api>();
+    final pos = await positionForAds(ask: !_askedLocation);
+    _askedLocation = true;
+    if (!mounted) return;
+    if (pos == null) {
+      if (_ads.isNotEmpty) setState(() => _ads = []);
+      return;
+    }
+    try {
+      final ads = await api.ads(lat: pos.latitude, lng: pos.longitude, take: 5);
+      if (mounted) setState(() => _ads = ads);
+    } catch (_) {/* بنحاول تاني في التحديث الجاي */}
   }
 
   /// أي مسار (كتابة / باركود / روشتة / علبة) بيرجّع Drug، وبعدها نكمل لصفحة الطلب
@@ -158,7 +175,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
             // مساحة الإعلانات
             if (_ads.isNotEmpty) ...[
-              _AdsCarousel(ads: _ads),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                const Text('إعلانات الصيدليات', style: TextStyle(fontWeight: FontWeight.w700)),
+                TextButton(
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdsScreen())),
+                  child: const Text('عرض الكل', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ]),
+              _AdsCarousel(
+                ads: _ads,
+                onOpen: (a) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AdDetailsScreen(adId: a.id))),
+              ),
               const SizedBox(height: 22),
             ],
 
@@ -221,8 +248,9 @@ class _Action extends StatelessWidget {
 }
 
 class _AdsCarousel extends StatefulWidget {
-  const _AdsCarousel({required this.ads});
+  const _AdsCarousel({required this.ads, required this.onOpen});
   final List<Ad> ads;
+  final void Function(Ad) onOpen;
   @override
   State<_AdsCarousel> createState() => _AdsCarouselState();
 }
@@ -250,7 +278,6 @@ class _AdsCarouselState extends State<_AdsCarousel> {
 
   @override
   Widget build(BuildContext context) {
-    final api = context.read<Api>();
     return Column(children: [
       SizedBox(
         height: 170,
@@ -258,44 +285,10 @@ class _AdsCarouselState extends State<_AdsCarousel> {
           controller: _page,
           itemCount: widget.ads.length,
           onPageChanged: (i) => setState(() => _i = i),
-          itemBuilder: (_, i) {
-            final a = widget.ads[i];
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: GestureDetector(
-                onTap: a.linkUrl == null ? null : () => launchUrl(Uri.parse(a.linkUrl!), mode: LaunchMode.externalApplication),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Stack(fit: StackFit.expand, children: [
-                    Container(color: kAdFallback),
-                    Image.network(api.imageUrl(a.imagePath), fit: BoxFit.cover, errorBuilder: (_, __, ___) => const SizedBox()),
-                    // تدرّج داكن تحت النص عشان يتقري
-                    const DecoratedBox(
-                        decoration: BoxDecoration(
-                            gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.center, colors: [Color(0xCC000000), Color(0x00000000)]))),
-                    Positioned(
-                      top: 10,
-                      right: 10,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                        decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(999)),
-                        child: const Text('إعلان', style: TextStyle(color: Colors.white, fontSize: 11)),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 12,
-                      right: 14,
-                      left: 14,
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(a.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)),
-                        if (a.pharmacyName != null) Text(a.pharmacyName!, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                      ]),
-                    ),
-                  ]),
-                ),
-              ),
-            );
-          },
+          itemBuilder: (_, i) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: AdTile(ad: widget.ads[i], onTap: () => widget.onOpen(widget.ads[i])),
+          ),
         ),
       ),
       if (widget.ads.length > 1)
@@ -316,4 +309,3 @@ class _AdsCarouselState extends State<_AdsCarousel> {
   }
 }
 
-const kAdFallback = Color(0xFF0B7F69);

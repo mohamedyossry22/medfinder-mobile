@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/fmt.dart';
 import 'common.dart';
 
-/// حلقة العد التنازلي للطلب (6 ساعات): نفس حلقة الويب
+/// حلقة العد التنازلي لمهلة الرد (120 دقيقة): نفس حلقة الويب
 class CountdownRing extends StatelessWidget {
   const CountdownRing({super.key, required this.expiresAt, required this.now});
   final DateTime expiresAt, now;
@@ -12,16 +12,16 @@ class CountdownRing extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final dark = isDark(context);
-    final h = hoursLeft(expiresAt, now);
+    final m = minutesLeft(expiresAt, now);
     return Semantics(
-      label: 'متبقي $h ساعة',
+      label: 'متبقي $m دقيقة للرد',
       excludeSemantics: true,
       child: SizedBox(
         width: 48,
         height: 48,
         child: CustomPaint(
           painter: _RingPainter(remainingFrac(expiresAt, now), dark ? const Color(0xFF12322C) : const Color(0xFFE3F6F1), cs.primary),
-          child: Center(child: Text('${h}س', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
+          child: Center(child: Text('${m}د', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
         ),
       ),
     );

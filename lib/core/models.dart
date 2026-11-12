@@ -16,18 +16,38 @@ class Drug {
 class Ad {
   final String id, title, imagePath;
   final String? linkUrl, pharmacyName;
+  final DateTime? endDate;
   Ad.fromJson(Map<String, dynamic> j)
       : id = j['id'] as String,
         title = j['title'] as String,
         imagePath = j['imagePath'] as String,
         linkUrl = j['linkUrl'] as String?,
-        pharmacyName = j['pharmacyName'] as String?;
+        pharmacyName = j['pharmacyName'] as String?,
+        endDate = j['endDate'] == null ? null : _t(j['endDate']);
+}
+
+/// تفاصيل إعلان: بيانات الصيدلية (اسم، رقم، عنوان، لوكيشن)
+class AdDetails {
+  final String id, title, imagePath, pharmacyName, governorate;
+  final String? linkUrl;
+  final DateTime startDate, endDate;
+  final Contact contact;
+  AdDetails.fromJson(Map<String, dynamic> j)
+      : id = j['id'] as String,
+        title = j['title'] as String,
+        imagePath = j['imagePath'] as String,
+        linkUrl = j['linkUrl'] as String?,
+        startDate = _t(j['startDate']),
+        endDate = _t(j['endDate']),
+        pharmacyName = (j['pharmacy']['name'] ?? '') as String,
+        governorate = (j['pharmacy']['governorate'] ?? '') as String,
+        contact = Contact.fromJson(Map<String, dynamic>.from(j['pharmacy'] as Map));
 }
 
 class RequestSummary {
   final String id, drugNameEn, drugNameAr, overallStatus;
   final int quantity, totalPharmacies, availableCount;
-  final DateTime createdAt, expiresAt;
+  final DateTime createdAt, replyDeadline, expiresAt;
   final bool isExpired, isClosed, needsConfirmation;
   RequestSummary.fromJson(Map<String, dynamic> j)
       : overallStatus = (j['overallStatus'] ?? 'Pending') as String,
@@ -40,6 +60,7 @@ class RequestSummary {
         totalPharmacies = j['totalPharmacies'] as int,
         availableCount = j['availableCount'] as int,
         createdAt = _t(j['createdAt']),
+        replyDeadline = _t(j['replyDeadline'] ?? j['expiresAt']),
         expiresAt = _t(j['expiresAt']),
         isExpired = j['isExpired'] as bool;
 }
@@ -74,7 +95,7 @@ class RequestDetails {
   final String id, drugNameEn, drugNameAr, overallStatus;
   final int quantity;
   final double radiusKm;
-  final DateTime createdAt, expiresAt;
+  final DateTime createdAt, replyDeadline, expiresAt;
   final bool isExpired, isClosed, needsConfirmation, canExpand;
   final List<PharmacyReply> pharmacies;
   RequestDetails.fromJson(Map<String, dynamic> j)
@@ -88,6 +109,7 @@ class RequestDetails {
         quantity = j['quantity'] as int,
         radiusKm = _d(j['radiusKm']),
         createdAt = _t(j['createdAt']),
+        replyDeadline = _t(j['replyDeadline'] ?? j['expiresAt']),
         expiresAt = _t(j['expiresAt']),
         isExpired = j['isExpired'] as bool,
         pharmacies = (j['pharmacies'] as List).map((e) => PharmacyReply.fromJson(e as Map<String, dynamic>)).toList();

@@ -149,9 +149,16 @@ class Api {
       _dio.post('/api/drugs/barcode', data: {'code': code, 'drugId': drugId});
 
   // ── الإعلانات ──
-  Future<List<Ad>> ads() async {
-    final r = await _dio.get('/api/ads');
+  /// الأحدث الأول. الرئيسية: take=5، وصفحة الإعلانات بتكمّل بـ skip
+  /// بس الإعلانات اللي صيدليتها في نطاق 10 كم من موقع المستخدم
+  Future<List<Ad>> ads({required double lat, required double lng, int take = 5, int skip = 0}) async {
+    final r = await _dio.get('/api/ads', queryParameters: {'lat': lat, 'lng': lng, 'take': take, 'skip': skip});
     return (r.data as List).map((e) => Ad.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<AdDetails> adDetails(String id, {required double lat, required double lng}) async {
+    final r = await _dio.get('/api/ads/$id', queryParameters: {'lat': lat, 'lng': lng});
+    return AdDetails.fromJson(r.data as Map<String, dynamic>);
   }
 
   // ── الطلبات ──

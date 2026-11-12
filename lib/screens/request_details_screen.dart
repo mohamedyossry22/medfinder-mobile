@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/api.dart';
 import '../core/auth_state.dart';
+import '../core/fmt.dart';
 import '../core/models.dart';
 import '../core/realtime.dart';
 import '../core/theme.dart';
@@ -82,11 +83,13 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
     if (!ok && mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح الرابط')));
   }
 
-  String _remaining(DateTime exp) {
-    final m = exp.difference(_now).inMinutes;
+  /// أول 120 دقيقة: مهلة رد الصيدليات (بالدقايق). بعدها: وقت استلام الدواء (لحد 6 ساعات من إنشاء الطلب).
+  String _remaining(RequestDetails d) {
+    if (d.replyDeadline.isAfter(_now)) return 'متبقي ${minutesLeft(d.replyDeadline, _now)} دقيقة لرد الصيدليات';
+    final m = d.expiresAt.difference(_now).inMinutes;
     if (m <= 0) return 'انتهى';
     final h = m ~/ 60;
-    return h > 0 ? 'متبقي $h ساعة و ${m % 60} دقيقة' : 'متبقي $m دقيقة';
+    return 'متبقي ${h > 0 ? '$h ساعة و ${m % 60} دقيقة' : '$m دقيقة'} لاستلام الدواء';
   }
 
   int _rank(String s) => (s == 'Available' || s == 'Partial' || s == 'Delivered') ? 0 : (s == 'Pending' ? 1 : 2);
@@ -120,7 +123,7 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
                       Row(children: [
                         const Icon(Icons.timer_outlined, size: 16),
                         const SizedBox(width: 6),
-                        Text(d.isClosed ? 'الطلب اتقفل' : (d.isExpired ? 'انتهى وقت الطلب' : _remaining(d.expiresAt)), style: TextStyle(color: muted, fontSize: 13)),
+                        Text(d.isClosed ? 'الطلب اتقفل' : (d.isExpired ? 'انتهى وقت الطلب' : _remaining(d)), style: TextStyle(color: muted, fontSize: 13)),
                       ]),
                     ]),
                   ),
